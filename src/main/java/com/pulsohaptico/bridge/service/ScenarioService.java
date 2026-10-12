@@ -1,62 +1,41 @@
 package com.pulsohaptico.bridge.service;
 
-import com.pulsohaptico.bridge.model.Scenario;
-import com.pulsohaptico.bridge.repository.ScenarioRepository;
-import org.hibernate.Hibernate;
-import org.springframework.transaction.annotation.Transactional;
+import com.pulsohaptico.bridge.model.SimulatedData;
+import lombok.Getter;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Service
 public class ScenarioService {
-    private final ScenarioRepository scenarioRepository;
-    private Scenario selectedScenario;
-    private double pulse;
-    private double state;
-    public ScenarioService(ScenarioRepository scenarioRepository) {
-        this.scenarioRepository = scenarioRepository;
-    }
-    public List<Scenario> findAll() {
-        return scenarioRepository.findAll();
-    }
+    private static final DateTimeFormatter DATETIME_LOCAL_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
 
-    @Transactional(readOnly = true)
-    public Scenario getSelectedScenario() {
-        if (selectedScenario == null) {
-            scenarioRepository.findAll().stream().findFirst()
-                    .ifPresent(scenario -> select(scenario.getId()));
-        }
-        return selectedScenario;
-    }
+    private SimulatedData simulatedData;
 
-    @Transactional(readOnly = true)
-    public void select(Long id) {
-        Scenario scenario = scenarioRepository.findById(id).orElseThrow(() ->
-                new IllegalArgumentException("Escenario no encontrado: " + id)
+    public ScenarioService() {
+        this.simulatedData = new SimulatedData(
+                70.0,
+                0.0, // latitude
+                0.0, // longitude
+                0.0, // noiseLevel
+                LocalDateTime.now(), // dateTime
+                0 // nearbyPeople
         );
-        initializeProfileData(scenario);
-        selectedScenario = scenario;
-        pulse = scenario.getBasePulse();
-        state = scenario.getBaseState() * 100;
     }
 
-    private void initializeProfileData(Scenario scenario) {
-        Hibernate.initialize(scenario.getProfile().getDeregulations());
-        Hibernate.initialize(scenario.getProfile().getRegulationStrategies());
-        Hibernate.initialize(scenario.getProfile().getActivities());
+    // --- Contexto del celular ---
+    public void setData(double pulse, double latitude, double longitude, double noiseLevel, String dateTime, int nearbyPeople) {
+        this.simulatedData.setPulse(pulse);
+        this.simulatedData.setLatitude(latitude);
+        this.simulatedData.setLongitude(longitude);
+        this.simulatedData.setNoiseLevel(noiseLevel);
+        this.simulatedData.setDateTime(LocalDateTime.parse(dateTime, DATETIME_LOCAL_FORMAT));
+        this.simulatedData.setNearbyPeople(nearbyPeople);
     }
 
-    public void setVitals(double pulse, double state) {
-        this.pulse = pulse;
-        this.state = state;
-    }
-
-    public double getPulse() {
-        return pulse;
-    }
-
-    public double getState() {
-        return state;
+    public SimulatedData getSimulatedData() {
+        return this.simulatedData;
     }
 }

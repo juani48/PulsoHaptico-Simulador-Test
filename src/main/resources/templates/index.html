@@ -5,94 +5,621 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pulso Háptico — Simulador de dispositivo</title>
   <link rel="stylesheet" th:href="@{/css/styles.css}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <style>
+    .sector {
+      border: 1px solid var(--accent, #d98e4a);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .sector > h2 {
+      margin-top: 0;
+    }
+    .sector-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+    @media (min-width: 720px) {
+      .sector-grid.device {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    .subblock {
+      padding-top: 14px;
+      border-top: 1px solid var(--border, rgba(255,255,255,.08));
+    }
+    .subblock:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+    .subblock h3 {
+      margin: 0 0 8px 0;
+      font-size: .95rem;
+      font-weight: 600;
+    }
+    .map-box {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+    .map-preview {
+      flex: 1 1 160px;
+      min-height: 110px;
+      border-radius: 10px;
+      background:
+              radial-gradient(circle at 55% 45%, rgba(88,166,255,.35), transparent 60%),
+              repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 22px),
+              repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 22px),
+              #1c2430;
+      position: relative;
+      overflow: hidden;
+    }
+    .map-pin {
+      position: absolute;
+      top: 45%;
+      left: 55%;
+      transform: translate(-50%, -100%);
+      font-size: 1.8rem;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,.5));
+      transition: top .2s ease, left .2s ease;
+    }
+    .coords {
+      flex: 1 1 140px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      justify-content: center;
+    }
+    .coords label {
+      font-size: .75rem;
+      opacity: .7;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .coords input {
+      width: 100%;
+      background: var(--panel, #1c2430);
+      border: 1px solid var(--border, rgba(255,255,255,.12));
+      border-radius: 6px;
+      color: inherit;
+      padding: 5px 8px;
+      font-size: .9rem;
+    }
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: .75rem;
+      opacity: .7;
+      margin-top: 4px;
+    }
+    .datetime-row input[type="datetime-local"] {
+      width: 100%;
+      background: var(--panel, #1c2430);
+      border: 1px solid var(--border, rgba(255,255,255,.12));
+      border-radius: 8px;
+      color: inherit;
+      padding: 8px 10px;
+      font-size: .95rem;
+    }
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .stepper button {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--border, rgba(255,255,255,.15));
+      background: var(--panel, #1c2430);
+      color: inherit;
+      font-size: 1.2rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .stepper .count {
+      font-size: 1.3rem;
+      font-weight: 700;
+      min-width: 2ch;
+      text-align: center;
+    }
+    .stepper .people-icons {
+      display: flex;
+      gap: 2px;
+      font-size: 1.1rem;
+      opacity: .85;
+    }
+    .pulse-display {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .bpm-box {
+      background: var(--panel, #1c2430);
+      border-radius: 10px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .bpm-box .bpm-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .bpm-box .bpm-unit {
+      opacity: .7;
+      font-size: .9rem;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: .85rem;
+      font-weight: 600;
+      background: rgba(63, 185, 80, .15);
+      color: #3fb950;
+    }
+    .status-pill.warn {
+      background: rgba(219, 130, 40, .15);
+      color: #db8228;
+    }
+    .status-pill .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    /* --- Estado de sincronización con el backend --- */
+    .sync-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .sync-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: .8rem;
+      font-weight: 600;
+      background: rgba(255,255,255,.08);
+      color: inherit;
+      opacity: .8;
+    }
+    .sync-pill.ok {
+      background: rgba(63, 185, 80, .15);
+      color: #3fb950;
+      opacity: 1;
+    }
+    .sync-pill.error {
+      background: rgba(224, 82, 82, .18);
+      color: #e05252;
+      opacity: 1;
+    }
+    .sync-pill .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .valores-actuales {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .valor-card {
+      background: var(--panel, #1c2430);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .valor-card .label {
+      font-size: .72rem;
+      opacity: .65;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .valor-card .value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .chart-wrap {
+      background: var(--panel, #1c2430);
+      border-radius: 10px;
+      padding: 14px;
+    }
+  </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Pulso Háptico — Simulador de dispositivo</h1>
   <div class="sub">Panel para simular el dispositivo vibro-táctil y probar la app de Base44 sin hardware.</div>
 
-  <div class="card">
-    <h2>Escenarios</h2>
-    <p class="sub">Selecciona un escenario para cargar los valores iniciales de pulso y estado.</p>
-    <div class="escenarios">
-      <form th:each="scenario : ${scenarios}" th:action="@{/set-scenario}" method="post">
-        <input type="hidden" name="id" th:value="${scenario.id}">
-        <button class="escenario" type="submit"
-                th:classappend="${selectedScenario != null and scenario.id == selectedScenario.id} ? ' activo' : ''"
-                th:attr="aria-pressed=${selectedScenario != null and scenario.id == selectedScenario.id}">
-          <span class="titulo" th:text="|Escenario ${scenario.id}|"></span>
-          <span class="desc" th:text="${scenario.description}"></span>
-        </button>
-      </form>
-    </div>
-    <p th:if="${scenarios.isEmpty()}" class="sub">No hay escenarios disponibles.</p>
-    <p th:if="${error}" th:text="${error}" style="color: var(--bad)"></p>
+  <!-- ===================== ESTADO DE SINCRONIZACIÓN ===================== -->
+  <div class="sync-bar">
+    <span class="sync-pill" id="sync-status"><span class="dot"></span><span id="sync-status-text">Sin cambios</span></span>
+    <span class="sub" style="margin:0;">Todo se envía a <code>POST /set-context</code></span>
   </div>
 
-  <div class="card">
-    <h2>Estado de la persona</h2>
-    <p class="sub">Ajusta los valores simulados. Al seleccionar un escenario se cargan sus valores base.</p>
+  <!-- ===================== SECTOR 1: CELULAR / DATOS DE CONTEXTO ===================== -->
+  <div class="sector">
+    <h2>Sector 1: Simulación de datos del celular</h2>
 
-    <div class="control">
-      <div class="control-header">
-        <label for="pulse">Pulso</label>
-        <output id="pulse-value" for="pulse"
-                th:text="${pulse}">0</output>
-        <span>BPM</span>
+    <div class="sector-grid device">
+
+      <div class="subblock">
+        <h3>Posición</h3>
+        <div class="map-box">
+          <div class="map-preview">
+            <div class="map-pin" id="map-pin">📍</div>
+          </div>
+          <div class="coords">
+            <div>
+              <label for="lat">Latitud</label>
+              <input id="lat" type="number" step="0.0001" min="-90" max="90"
+                     th:value="${latitude}">
+            </div>
+            <div>
+              <label for="lon">Longitud</label>
+              <input id="lon" type="number" step="0.0001" min="-180" max="180"
+                     th:value="${longitude}">
+            </div>
+          </div>
+        </div>
       </div>
-      <input id="pulse" type="range" min="40" max="180" step="1"
-             th:value="${pulse}">
+
+      <div class="subblock">
+        <h3>Nivel de ruido ambiente</h3>
+        <div class="control">
+          <div class="control-header">
+            <label for="noise">Decibeles</label>
+            <output id="noise-value" for="noise" th:text="${noiseLevel}">0</output>
+            <span>dB</span>
+          </div>
+          <input id="noise" type="range" min="30" max="110" step="1" th:value="${noiseLevel}">
+          <div class="range-labels"><span>Silencio</span><span>Ruidoso</span></div>
+        </div>
+      </div>
+
+      <div class="subblock">
+        <h3>Fecha y hora</h3>
+        <div class="datetime-row">
+          <!-- El backend espera el formato yyyy-MM-dd'T'HH:mm -->
+          <input id="datetime" type="datetime-local" step="60"
+                 th:value="${dateTime}">
+        </div>
+      </div>
+
+      <div class="subblock">
+        <h3>Personas cercanas</h3>
+        <div class="stepper">
+          <button type="button" id="people-minus" aria-label="Restar">−</button>
+          <span class="count" id="people-value" th:text="${nearbyPeople}">0</span>
+          <button type="button" id="people-plus" aria-label="Sumar">+</button>
+          <span class="people-icons" id="people-icons"></span>
+        </div>
+      </div>
+
     </div>
+  </div>
 
-    <div class="control">
-      <div class="control-header">
-        <label for="state">Estado</label>
-        <output id="state-value" for="state"
-                th:text="${state}">0</output>
-        <span>%</span>
+  <!-- ===================== SECTOR 2: SENSOR DE PULSO ===================== -->
+  <div class="sector">
+    <h2>Sector 2: Simulación de sensor de pulso</h2>
+    <div class="pulse-display">
+      <div class="bpm-box">
+        <span class="bpm-value" id="pulse-value" th:text="${pulse}">0</span>
+        <span class="bpm-unit">BPM</span>
       </div>
-      <input id="state" type="range" min="0" max="100" step="1"
-             th:value="${state}">
+      <span class="status-pill" id="pulse-status"><span class="dot"></span><span id="pulse-status-text">Simulando: Normal</span></span>
+    </div>
+    <div class="control" style="margin-top: 14px;">
+      <!-- El backend valida 40 <= pulse <= 180 -->
+      <input id="pulse" type="range" min="40" max="180" step="1" th:value="${pulse}">
+      <div class="range-labels"><span>40 BPM</span><span>180 BPM</span></div>
+    </div>
+  </div>
+
+  <!-- ===================== VALORES ACTUALES ===================== -->
+  <div class="card">
+    <h2>Valores actuales</h2>
+    <div class="valores-actuales">
+      <div class="valor-card">
+        <div class="label">Posición</div>
+        <div class="value" id="cv-pos">—</div>
+      </div>
+      <div class="valor-card">
+        <div class="label">Ruido</div>
+        <div class="value" id="cv-noise">— dB</div>
+      </div>
+      <div class="valor-card">
+        <div class="label">Fecha y hora</div>
+        <div class="value" id="cv-datetime">—</div>
+      </div>
+      <div class="valor-card">
+        <div class="label">Personas cercanas</div>
+        <div class="value" id="cv-people">—</div>
+      </div>
+      <div class="valor-card">
+        <div class="label">Pulso</div>
+        <div class="value" id="cv-pulse">— BPM</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== HISTORIAL / GRÁFICA ===================== -->
+  <div class="card">
+    <h2>Historial de valores</h2>
+    <p class="sub">Últimos valores simulados de pulso y ruido ambiente (esta sesión).</p>
+    <div class="chart-wrap">
+      <canvas id="history-chart" height="90"></canvas>
     </div>
   </div>
 
 </div>
 
-<script>
+<script th:inline="javascript">
+  /* ---- Elementos ---- */
   const pulse = document.getElementById("pulse");
   const pulseValue = document.getElementById("pulse-value");
-  const state = document.getElementById("state");
-  const stateValue = document.getElementById("state-value");
+  const pulseStatus = document.getElementById("pulse-status");
+  const pulseStatusText = document.getElementById("pulse-status-text");
 
-  function updateOutput(input, output, formatter) {
-    output.value = formatter(input.value);
-    output.textContent = formatter(input.value);
+  const lat = document.getElementById("lat");
+  const lon = document.getElementById("lon");
+  const mapPin = document.getElementById("map-pin");
+  const noise = document.getElementById("noise");
+  const noiseValue = document.getElementById("noise-value");
+  const datetime = document.getElementById("datetime");
+  const peopleValue = document.getElementById("people-value");
+  const peopleMinus = document.getElementById("people-minus");
+  const peoplePlus = document.getElementById("people-plus");
+  const peopleIcons = document.getElementById("people-icons");
+
+  const cvPos = document.getElementById("cv-pos");
+  const cvNoise = document.getElementById("cv-noise");
+  const cvDatetime = document.getElementById("cv-datetime");
+  const cvPeople = document.getElementById("cv-people");
+  const cvPulse = document.getElementById("cv-pulse");
+
+  const syncStatus = document.getElementById("sync-status");
+  const syncStatusText = document.getElementById("sync-status-text");
+
+  /* ---- Estado del sensor de pulso (rangos simples: normal 60-100) ---- */
+  function updatePulseStatus(value) {
+    const v = Number(value);
+    if (v >= 60 && v <= 100) {
+      pulseStatus.classList.remove("warn");
+      pulseStatusText.textContent = "Simulando: Normal";
+    } else {
+      pulseStatus.classList.add("warn");
+      pulseStatusText.textContent = v > 100 ? "Simulando: Elevado" : "Simulando: Bajo";
+    }
   }
 
-  let updateTimer;
-  function updateVitals() {
-    clearTimeout(updateTimer);
-    updateTimer = setTimeout(() => {
+  /* ---- Indicador de sincronización ---- */
+  let syncTimer;
+  function setSyncStatus(state) {
+    clearTimeout(syncTimer);
+    syncStatus.classList.remove("ok", "error");
+    if (state === "ok") {
+      syncStatus.classList.add("ok");
+      syncStatusText.textContent = "Sincronizado";
+      syncTimer = setTimeout(() => {
+        syncStatus.classList.remove("ok");
+        syncStatusText.textContent = "Sin cambios";
+      }, 1500);
+    } else if (state === "error") {
+      syncStatus.classList.add("error");
+      syncStatusText.textContent = "Error al guardar";
+    } else {
+      syncStatusText.textContent = "Guardando…";
+    }
+  }
+
+  /* ---- Helpers de formato ---- */
+  function pad(n) { return String(n).padStart(2, "0"); }
+
+  // Devuelve siempre "yyyy-MM-ddTHH:mm" (formato exigido por el backend)
+  function currentDateTimeLocal() {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function numOr(el, fallback) {
+    const v = Number(el.value);
+    return Number.isFinite(v) ? v : fallback;
+  }
+
+  /* ---- Envío al backend: TODO va a /set-context ---- */
+  let contextTimer;
+  function sendContext() {
+    clearTimeout(contextTimer);
+    contextTimer = setTimeout(async () => {
+      // dateTime es obligatorio: si está vacío usamos "ahora"
+      if (!datetime.value) {
+        datetime.value = currentDateTimeLocal();
+      }
+
       const body = new URLSearchParams({
-        pulse: pulse.value,
-        state: state.value
+        pulse: String(numOr(pulse, 70)),
+        latitude: String(numOr(lat, 0)),
+        longitude: String(numOr(lon, 0)),
+        noiseLevel: String(numOr(noise, 0)),
+        dateTime: datetime.value,          // yyyy-MM-ddTHH:mm
+        nearbyPeople: String(peopleCount)
       });
-      fetch("/set-vitals", {
-        method: "POST",
-        headers: {"Content-Type": "application/x-www-form-urlencoded"},
-        body
-      });
-    }, 100);
+
+      setSyncStatus("saving");
+      try {
+        const res = await fetch("/set-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body
+        });
+        if (!res.ok) {
+          setSyncStatus("error");
+          return;
+        }
+        window.location.reload();
+      } catch (e) {
+        setSyncStatus("error");
+      }
+    }, 150);
   }
 
+  /* ---- Íconos de "personas cercanas" (estilo Google Maps) ---- */
+  function renderPeopleIcons(n) {
+    const max = 8;
+    peopleIcons.textContent = "🧍".repeat(Math.min(n, max)) + (n > max ? "…" : "");
+  }
+
+  /* ---- Pin del mapa: se mueve levemente según lat/lon ---- */
+  function updateMapPin() {
+    const la = Math.max(-90, Math.min(90, numOr(lat, 0)));
+    const lo = Math.max(-180, Math.min(180, numOr(lon, 0)));
+    // Normalizamos a porcentajes dentro de la caja (con margen del 10%)
+    const topPct = 50 - (la / 90) * 40;     // -90 -> 90%, 90 -> 10%
+    const leftPct = 50 + (lo / 180) * 40;   // -180 -> 10%, 180 -> 90%
+    mapPin.style.top = `${topPct}%`;
+    mapPin.style.left = `${leftPct}%`;
+  }
+
+  /* ---- Valores actuales (resumen) ---- */
+  function refreshCurrentValues() {
+    cvPos.textContent = `${numOr(lat, 0).toFixed(4)}, ${numOr(lon, 0).toFixed(4)}`;
+    cvNoise.textContent = `${numOr(noise, 0)} dB`;
+    cvDatetime.textContent = datetime.value ? datetime.value.replace("T", " ") : "—";
+    cvPeople.textContent = peopleValue.textContent;
+    cvPulse.textContent = `${numOr(pulse, 0)} BPM`;
+  }
+
+  function applyBackendState(data) {
+    if (typeof data.pulse === "number") {
+      pulse.value = data.pulse;
+      pulseValue.textContent = data.pulse;
+      updatePulseStatus(data.pulse);
+    }
+    if (typeof data.latitude === "number") {
+      lat.value = data.latitude;
+    }
+    if (typeof data.longitude === "number") {
+      lon.value = data.longitude;
+    }
+    if (typeof data.noiseLevel === "number") {
+      noise.value = data.noiseLevel;
+      noiseValue.textContent = data.noiseLevel;
+    }
+    if (data.dateTime) {
+      datetime.value = String(data.dateTime).slice(0, 16);
+    }
+    if (typeof data.nearbyPeople === "number") {
+      peopleCount = data.nearbyPeople;
+      peopleValue.textContent = peopleCount;
+      renderPeopleIcons(peopleCount);
+    }
+    updateMapPin();
+    refreshCurrentValues();
+  }
+
+  /* ---- Historial / gráfica ---- */
+  const MAX_POINTS = 30;
+  const history = { labels: [], pulse: [], noise: [] };
+
+  const ctx = document.getElementById("history-chart");
+  const chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: history.labels,
+      datasets: [
+        { label: "Pulso (BPM)", data: history.pulse, borderColor: "#e05252", tension: .3, yAxisID: "y" },
+        { label: "Ruido (dB)", data: history.noise, borderColor: "#58a6ff", tension: .3, yAxisID: "y1" }
+      ]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: { position: "left", title: { display: true, text: "BPM" } },
+        y1: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "dB" } }
+      }
+    }
+  });
+
+  function pushHistoryPoint() {
+    const now = new Date();
+    const label = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    history.labels.push(label);
+    history.pulse.push(numOr(pulse, 0));
+    history.noise.push(numOr(noise, 0));
+    if (history.labels.length > MAX_POINTS) {
+      history.labels.shift();
+      history.pulse.shift();
+      history.noise.shift();
+    }
+    chart.update();
+  }
+
+  /* ---- Listeners ---- */
   pulse.addEventListener("input", () => {
-    updateOutput(pulse, pulseValue, value => value);
-    updateVitals();
+    pulseValue.textContent = pulse.value;
+    updatePulseStatus(pulse.value);
+    refreshCurrentValues();
+    sendContext();
   });
-  state.addEventListener("input", () => {
-    updateOutput(state, stateValue, value => value);
-    updateVitals();
+
+  [lat, lon].forEach(el => el.addEventListener("input", () => {
+    updateMapPin();
+    refreshCurrentValues();
+    sendContext();
+  }));
+
+  noise.addEventListener("input", () => {
+    noiseValue.textContent = noise.value;
+    refreshCurrentValues();
+    sendContext();
   });
+
+  datetime.addEventListener("input", () => {
+    refreshCurrentValues();
+    sendContext();
+  });
+
+  let peopleCount = Number(peopleValue.textContent) || 0;
+  function setPeopleCount(n) {
+    peopleCount = Math.max(0, Math.min(30, n));
+    peopleValue.textContent = peopleCount;
+    renderPeopleIcons(peopleCount);
+    refreshCurrentValues();
+    sendContext();
+  }
+  peopleMinus.addEventListener("click", () => setPeopleCount(peopleCount - 1));
+  peoplePlus.addEventListener("click", () => setPeopleCount(peopleCount + 1));
+
+  /* ---- Inicialización ---- */
+  updatePulseStatus(pulse.value);
+  renderPeopleIcons(peopleCount);
+
+  // Si el backend no envió fecha (o llegó vacía), ponemos "ahora"
+  if (!datetime.value) {
+    datetime.value = currentDateTimeLocal();
+  }
+
+  updateMapPin();
+  refreshCurrentValues();
+  pushHistoryPoint();
+  setInterval(pushHistoryPoint, 3000);
 </script>
 
 </body>
